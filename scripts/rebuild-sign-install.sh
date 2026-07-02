@@ -10,7 +10,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-KALI_BOOTSTRAP="$(cd "$SCRIPT_DIR/../../../kali/scripts" 2>/dev/null && pwd)/bootstrap-reverse.sh"
+source "$SCRIPT_DIR/lib/tools.sh"
+
+DEFAULT_BUILD_TOOLS_VERSION="35.0.0"
 DEFAULT_KEYSTORE="$SCRIPT_DIR/../debug.keystore"
 
 # ─── 参数 ──────────────────────────────────────────────────────────────────────────
@@ -58,30 +60,11 @@ fi
 
 # ─── 工具检测 ──────────────────────────────────────────────────────────────────────
 
-ensure_tool() {
-    local name="$1"
-    if command -v "$name" &>/dev/null; then
-        return 0
-    fi
-    echo "INFO: $name 未找到，尝试自动安装..."
-    if [[ -x "$KALI_BOOTSTRAP" ]]; then
-        bash "$KALI_BOOTSTRAP" "$name" --skip-refresh 2>/dev/null || true
-    fi
-    if ! command -v "$name" &>/dev/null; then
-        echo "ERR: $name 不可用。"
-        case "$name" in
-            zipalign|apksigner) echo "  安装: sudo apt install android-sdk-build-tools 或 sdkmanager 'build-tools;35.0.0'" ;;
-            *) echo "  请手动安装 $name" ;;
-        esac
-        exit 1
-    fi
-}
-
-ensure_tool "apktool"
-ensure_tool "zipalign"
-ensure_tool "apksigner"
-ensure_tool "keytool"
-[[ "$DO_INSTALL" == "true" ]] && ensure_tool "adb"
+ensure_tool "apktool" "Install: https://apktool.org/"
+ensure_tool "zipalign" "Install: sudo apt install android-sdk-build-tools or sdkmanager 'build-tools;$DEFAULT_BUILD_TOOLS_VERSION'"
+ensure_tool "apksigner" "Install: sudo apt install android-sdk-build-tools or sdkmanager 'build-tools;$DEFAULT_BUILD_TOOLS_VERSION'"
+ensure_tool "keytool" "Install: part of JDK"
+[[ "$DO_INSTALL" == "true" ]] && ensure_tool "adb" "Install: sudo apt install adb"
 
 # ─── 生成 debug keystore（如果不存在） ─────────────────────────────────────────────
 

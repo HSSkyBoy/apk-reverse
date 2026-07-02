@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-KALI_BOOTSTRAP="$(cd "$SCRIPT_DIR/../../../kali/scripts" 2>/dev/null && pwd)/bootstrap-reverse.sh"
+source "$SCRIPT_DIR/lib/tools.sh"
 
 # ─── 参数 ──────────────────────────────────────────────────────────────────────────
 
@@ -42,21 +42,8 @@ done
 
 # ─── 工具检测 ──────────────────────────────────────────────────────────────────────
 
-ensure_frida() {
-    if command -v frida &>/dev/null; then
-        return 0
-    fi
-    echo "INFO: frida 未找到，尝试安装..."
-    if [[ -x "$KALI_BOOTSTRAP" ]]; then
-        bash "$KALI_BOOTSTRAP" frida --skip-refresh 2>/dev/null || true
-    fi
-    if ! command -v frida &>/dev/null; then
-        echo "ERR: frida 不可用。安装: pip3 install frida-tools"
-        exit 1
-    fi
-}
-
-ensure_frida
+ensure_tool "frida" "Install: pip3 install frida-tools"
+ensure_tool "frida-ps" "Install: pip3 install frida-tools"
 
 # ─── 列出设备 ──────────────────────────────────────────────────────────────────────
 

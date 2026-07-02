@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-KALI_BOOTSTRAP="$(cd "$SCRIPT_DIR/../../../kali/scripts" 2>/dev/null && pwd)/bootstrap-reverse.sh"
+source "$SCRIPT_DIR/lib/tools.sh"
 
 # ─── 参数解析 ──────────────────────────────────────────────────────────────────────
 
@@ -44,24 +44,8 @@ fi
 
 # ─── 工具检测与自动安装 ─────────────────────────────────────────────────────────────
 
-ensure_tool() {
-    local name="$1"
-    if command -v "$name" &>/dev/null; then
-        return 0
-    fi
-    echo "INFO: $name 未找到，尝试自动安装..."
-    if [[ -x "$KALI_BOOTSTRAP" ]]; then
-        bash "$KALI_BOOTSTRAP" "$name" --skip-refresh 2>/dev/null || true
-    fi
-    if ! command -v "$name" &>/dev/null; then
-        echo "ERR: $name 安装失败，请手动安装"
-        return 1
-    fi
-    echo "INFO: $name 安装成功"
-}
-
-[[ "$SKIP_JADX" != "true" ]] && ensure_tool "jadx"
-[[ "$SKIP_APKTOOL" != "true" ]] && ensure_tool "apktool"
+[[ "$SKIP_JADX" != "true" ]] && ensure_tool "jadx" "Install: https://github.com/skylot/jadx"
+[[ "$SKIP_APKTOOL" != "true" ]] && ensure_tool "apktool" "Install: https://apktool.org/"
 
 # ─── 路径计算 ──────────────────────────────────────────────────────────────────────
 
