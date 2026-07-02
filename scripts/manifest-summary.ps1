@@ -8,15 +8,33 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'lib\Encoding.ps1')
+
+<#
+.SYNOPSIS
+Extract key AndroidManifest.xml components and permissions.
+
+.DESCRIPTION
+Parses an AndroidManifest.xml and outputs key=value lines for:
+package, permissions (count + each name), activities/services/receivers/providers
+(count + each with name/exported/enabled), and main activity entries.
+
+.PARAMETER ManifestPath
+Path to the AndroidManifest.xml file (typically from apktool output).
+
+.OUTPUTS
+key=value lines to stdout. See SKILL.md for output format documentation.
+#>
 
 if (-not (Test-Path -LiteralPath $ManifestPath)) {
     throw "Manifest not found: $ManifestPath"
 }
 
-$xml = [xml](Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8)
+try {
+    $xml = [xml](Get-Content -LiteralPath $ManifestPath -Raw -Encoding UTF8)
+} catch {
+    throw "Failed to parse AndroidManifest.xml as valid XML: $($_.Exception.Message)"
+}
 $androidNs = 'http://schemas.android.com/apk/res/android'
 $nsMgr = [System.Xml.XmlNamespaceManager]::new($xml.NameTable)
 $nsMgr.AddNamespace('android', $androidNs)

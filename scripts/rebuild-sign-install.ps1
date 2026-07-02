@@ -28,9 +28,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'lib\Encoding.ps1')
+
+$Script:DefaultBuildToolsVersion = '36.1.0'
 
 if ([string]::IsNullOrWhiteSpace($KeystorePath)) {
     $KeystorePath = Join-Path $PSScriptRoot '..\debug.keystore'
@@ -73,11 +73,14 @@ function Get-ToolPath {
     }
 
     # Attempt auto-bootstrap for supported tools
-    $bootstrapScript = Join-Path $PSScriptRoot '..\..\scripts\bootstrap-reverse.ps1'
+    $bootstrapScript = Join-Path $PSScriptRoot 'bootstrap-reverse.ps1'
     $bootstrapSupported = @('adb', 'apktool')
     if ($Name -in $bootstrapSupported -and (Test-Path -LiteralPath $bootstrapScript)) {
         Write-Host "INFO: $Name not found, attempting auto-bootstrap..." -ForegroundColor Yellow
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $bootstrapScript -Capability @($Name) -SkipRefresh
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARNING: Bootstrap attempt returned non-zero exit code ($LASTEXITCODE)." -ForegroundColor Yellow
+        }
         $cmd = Get-Command $Name -ErrorAction SilentlyContinue
         if ($cmd) {
             Write-Host "INFO: $Name bootstrapped successfully." -ForegroundColor Green
@@ -96,8 +99,8 @@ function Get-ToolPath {
 
     # Clear error message for tools that cannot be auto-bootstrapped
     $manualHint = switch ($Name) {
-        'zipalign'  { 'Install Android Build-Tools via Android SDK Manager (sdkmanager "build-tools;35.0.0")' }
-        'apksigner' { 'Install Android Build-Tools via Android SDK Manager (sdkmanager "build-tools;35.0.0")' }
+        'zipalign'  { "Install Android Build-Tools via Android SDK Manager (sdkmanager `"build-tools;$Script:DefaultBuildToolsVersion`")" }
+        'apksigner' { "Install Android Build-Tools via Android SDK Manager (sdkmanager `"build-tools;$Script:DefaultBuildToolsVersion`")" }
         default     { "Install $Name manually" }
     }
     throw "Missing required CLI tool: $Name — $manualHint"
@@ -174,7 +177,6 @@ if ($LASTEXITCODE -ne 0) {
     throw 'zipalign failed.'
 }
 
-Copy-Item -LiteralPath $alignedApk -Destination $signedApk -Force
 & $apksigner sign --ks $KeystorePath --ks-key-alias $KeyAlias --ks-pass "pass:$StorePass" --key-pass "pass:$KeyPass" --out $signedApk $alignedApk
 if ($LASTEXITCODE -ne 0) {
     throw 'apksigner sign failed.'

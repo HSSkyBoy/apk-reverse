@@ -23,9 +23,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'lib\Encoding.ps1')
 
 function Get-PythonScriptCandidates {
     param([Parameter(Mandatory = $true)][string]$ExecutableName)
@@ -68,10 +66,13 @@ function Get-ToolPath {
     }
 
     # Attempt auto-bootstrap for frida tools
-    $bootstrapScript = Join-Path $PSScriptRoot '..\..\scripts\bootstrap-reverse.ps1'
+    $bootstrapScript = Join-Path $PSScriptRoot 'bootstrap-reverse.ps1'
     if (($Name -in @('frida', 'frida-ps', 'frida-ls-devices')) -and (Test-Path -LiteralPath $bootstrapScript)) {
         Write-Host "INFO: $Name not found, attempting auto-bootstrap (pip install frida-tools)..." -ForegroundColor Yellow
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $bootstrapScript -Capability @('frida') -SkipRefresh
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "WARNING: Bootstrap attempt returned non-zero exit code ($LASTEXITCODE)." -ForegroundColor Yellow
+        }
         $cmd = Get-Command $Name -ErrorAction SilentlyContinue
         if ($cmd) {
             Write-Host "INFO: $Name bootstrapped successfully." -ForegroundColor Green

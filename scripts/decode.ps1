@@ -18,11 +18,9 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-$OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+. (Join-Path $PSScriptRoot 'lib\Encoding.ps1')
 
-. (Join-Path $PSScriptRoot '..\..\scripts\lib\ToolDiscovery.ps1')
+. (Join-Path $PSScriptRoot 'lib\ToolDiscovery.ps1')
 
 function Get-SafeName {
     param([Parameter(Mandatory = $true)][string]$PathValue)
@@ -78,7 +76,7 @@ if (-not $SkipJadx) {
         }
         $jadxSpec = Resolve-ReverseToolSpec -Name 'jadx'
         if (-not $jadxSpec.Available) {
-            throw 'jadx still not available after bootstrap. Check installation at %USERPROFILE%\Tools\jadx\'
+            throw 'jadx still not available after bootstrap. Check installation at ' + (Join-Path $env:USERPROFILE 'Tools\jadx')
         }
         Write-Host 'INFO: jadx bootstrapped successfully.' -ForegroundColor Green
     }
@@ -93,7 +91,7 @@ if (-not $SkipApktool) {
         }
         $apktoolSpec = Resolve-ReverseToolSpec -Name 'apktool'
         if (-not $apktoolSpec.Available) {
-            throw 'apktool still not available after bootstrap. Check installation at %USERPROFILE%\Tools\apktool\'
+            throw 'apktool still not available after bootstrap. Check installation at ' + (Join-Path $env:USERPROFILE 'Tools\apktool')
         }
         Write-Host 'INFO: apktool bootstrapped successfully.' -ForegroundColor Green
     }
@@ -155,4 +153,8 @@ $resXmlCount = if ((Test-Path -LiteralPath $apktoolOut)) { (Get-ChildItem -Liter
 
 if (($jadxExitCode -ne $null) -and ($jadxExitCode -ne 0)) {
     "warning=jadx returned non-zero exit code; inspect output but treat exported sources as usable if present"
+}
+
+if (($apktoolExitCode -ne $null) -and ($apktoolExitCode -ne 0)) {
+    "warning=apktool returned non-zero exit code; smali/resource output may be incomplete"
 }
