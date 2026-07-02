@@ -1,6 +1,12 @@
 ---
 name: apk-reverse
-description: Use this skill when performing Android APK reverse engineering in a CLI environment. It applies to APK unpacking, Java decompilation, smali modification, rebuilding, Frida dynamic hooks, and switching to SO/native analysis when needed. Prefer locally installed jadx, apktool, frida, adb, ida-reverse, and radare2.
+description: >
+  Performs Android APK reverse engineering in a CLI environment. Covers APK
+  unpacking, Java decompilation, smali modification, rebuilding, Frida dynamic
+  hooks, and native .so analysis. Use when the user wants to "reverse an APK",
+  "decompile an Android app", "analyze APK logic", "hook Android methods with
+  Frida", "bypass SSL pinning", "bypass root detection", "modify smali code",
+  "rebuild and sign an APK", or "inspect AndroidManifest".
 ---
 
 # APK Reverse Engineering CLI Work Specification
@@ -17,22 +23,22 @@ Prefer this skill when the task belongs to one of the following scenarios:
 - Use Frida for Java/native dynamic hooks
 - Switch to native analysis when the APK contains `.so` files
 
-## CLI Tools Verified on the Current Machine
+## Required CLI Tools
 
-- `jadx` `1.5.5`
-- `apktool` `3.0.2`
-- `frida-ps` `17.9.6`
+- `jadx` (latest release recommended)
+- `apktool` (latest release recommended)
+- `frida` / `frida-ps` (latest via `pip install frida-tools`)
 - `adb`
-- `java`
+- `java` (JDK 11+)
 
 ## When to Prefer Scripts
 
-The following workflows are frequent and error-prone, so prefer the scripts bundled with this skill:
+The following workflows are frequent and error-prone, so prefer the scripts bundled with this skill. All scripts have both PowerShell (`.ps1`) and Bash (`.sh`) versions — use `.ps1` on Windows and `.sh` on Linux/macOS.
 
-- Run `jadx + apktool` in one pass, write results to disk, and generate a summary: `scripts/decode.ps1`
-- Frida device check, process listing, spawn/attach injection: `scripts/frida-run.ps1`
-- Rebuild, align, sign, and install an APK: `scripts/rebuild-sign-install.ps1`
-- Quickly extract key Manifest components and permissions: `scripts/manifest-summary.ps1`
+- Run `jadx + apktool` in one pass, write results to disk, and generate a summary: `scripts/decode.ps1` / `scripts/decode.sh`
+- Frida device check, process listing, spawn/attach injection: `scripts/frida-run.ps1` / `scripts/frida-run.sh`
+- Rebuild, align, sign, and install an APK: `scripts/rebuild-sign-install.ps1` / `scripts/rebuild-sign-install.sh`
+- Quickly extract key Manifest components and permissions: `scripts/manifest-summary.ps1` / `scripts/manifest-summary.sh`
 
 Keep the following one-line commands as direct calls without wrapping them in dedicated scripts:
 
@@ -44,7 +50,7 @@ Keep the following one-line commands as direct calls without wrapping them in de
 
 ## Bundled Scripts
 
-### `scripts/decode.ps1`
+### `scripts/decode.ps1` / `scripts/decode.sh`
 
 Purpose:
 
@@ -56,11 +62,18 @@ Purpose:
 Examples:
 
 ```powershell
-pwsh -File "<skill-root>\apk-reverse\scripts\decode.ps1" -ApkPath "D:\DOWNLOAD\app.apk" -Clean
-pwsh -File "<skill-root>\apk-reverse\scripts\decode.ps1" -ApkPath "D:\DOWNLOAD\app.apk" -Name demo -SkipJadx
+# Windows (PowerShell)
+pwsh -File ".\scripts\decode.ps1" -ApkPath "D:\DOWNLOAD\app.apk" -Clean
+pwsh -File ".\scripts\decode.ps1" -ApkPath "D:\DOWNLOAD\app.apk" -Name demo -SkipJadx
 ```
 
-### `scripts/frida-run.ps1`
+```bash
+# Linux/macOS (Bash)
+bash scripts/decode.sh app.apk --clean
+bash scripts/decode.sh app.apk --name demo --skip-jadx
+```
+
+### `scripts/frida-run.ps1` / `scripts/frida-run.sh`
 
 Purpose:
 
@@ -70,12 +83,20 @@ Purpose:
 Examples:
 
 ```powershell
-pwsh -File "<skill-root>\apk-reverse\scripts\frida-run.ps1" -ListDevices
-pwsh -File "<skill-root>\apk-reverse\scripts\frida-run.ps1" -Usb -ListProcesses
-pwsh -File "<skill-root>\apk-reverse\scripts\frida-run.ps1" -Usb -Spawn -Package com.example.app -ScriptPath "D:\hooks\test.js"
+# Windows (PowerShell)
+pwsh -File ".\scripts\frida-run.ps1" -ListDevices
+pwsh -File ".\scripts\frida-run.ps1" -Usb -ListProcesses
+pwsh -File ".\scripts\frida-run.ps1" -Usb -Spawn -Package com.example.app -ScriptPath "D:\hooks\test.js"
 ```
 
-### `scripts/rebuild-sign-install.ps1`
+```bash
+# Linux/macOS (Bash)
+bash scripts/frida-run.sh --list-devices
+bash scripts/frida-run.sh --usb --list-processes
+bash scripts/frida-run.sh --usb --spawn --package com.example.app --script hooks/test.js
+```
+
+### `scripts/rebuild-sign-install.ps1` / `scripts/rebuild-sign-install.sh`
 
 Purpose:
 
@@ -87,8 +108,15 @@ Purpose:
 Examples:
 
 ```powershell
-pwsh -File "<skill-root>\apk-reverse\scripts\rebuild-sign-install.ps1" -ProjectDir "C:\work\apktool_out" -Clean
-pwsh -File "<skill-root>\apk-reverse\scripts\rebuild-sign-install.ps1" -ProjectDir "C:\work\apktool_out" -Install -Reinstall -DeviceSerial "127.0.0.1:7555"
+# Windows (PowerShell)
+pwsh -File ".\scripts\rebuild-sign-install.ps1" -ProjectDir "C:\work\apktool_out" -Clean
+pwsh -File ".\scripts\rebuild-sign-install.ps1" -ProjectDir "C:\work\apktool_out" -Install -Reinstall -DeviceSerial "127.0.0.1:7555"
+```
+
+```bash
+# Linux/macOS (Bash)
+bash scripts/rebuild-sign-install.sh apktool_out --clean
+bash scripts/rebuild-sign-install.sh apktool_out --install --reinstall --device "127.0.0.1:7555"
 ```
 
 Notes:
@@ -96,7 +124,7 @@ Notes:
 - A debug keystore is generated and reused by default
 - The default output is placed next to `ProjectDir`, making it easy to keep the original package, decoded directory, and rebuilt package together
 
-### `scripts/manifest-summary.ps1`
+### `scripts/manifest-summary.ps1` / `scripts/manifest-summary.sh`
 
 Purpose:
 
@@ -108,8 +136,24 @@ Purpose:
 Example:
 
 ```powershell
-pwsh -File "<skill-root>\apk-reverse\scripts\manifest-summary.ps1" -ManifestPath "C:\work\apktool_out\AndroidManifest.xml"
+# Windows (PowerShell)
+pwsh -File ".\scripts\manifest-summary.ps1" -ManifestPath "C:\work\apktool_out\AndroidManifest.xml"
 ```
+
+```bash
+# Linux/macOS (Bash)
+bash scripts/manifest-summary.sh --manifest work/apktool_out/AndroidManifest.xml
+```
+
+#### Output Format
+
+All scripts output `key=value` lines to stdout. Component entries use tab-separated fields (`name\texported\tenabled`).
+
+**decode scripts** produce: `task_root`, `jadx_out`, `apktool_out`, `package`, `jadx_exit_code`, `apktool_exit_code`, `java_files`, `smali_dirs`, `so_files`, `xml_files`, `warning` (on non-zero exit)
+
+**manifest-summary scripts** produce: `package`, `permission_count`, `permission=...`, `activity_count`, `activity=name\texported\tenabled`, `service_count`, `service=...`, `receiver_count`, `receiver=...`, `provider_count`, `provider=...`, `main_activity=...`
+
+**rebuild-sign-install scripts** produce: `unsigned_apk`, `aligned_apk`, `signed_apk`, `keystore`, `install_device` (if --install)
 
 For `.so`, `lib/arm64-v8a/*.so`, or `lib/armeabi-v7a/*.so` analysis, combine this with:
 
@@ -338,41 +382,39 @@ frida -U -f com.example.app -l hook.js
 
 ## Routing Context
 
-**Upstream entry**: `skills/SKILL.md` (controller), `routing.md`
-**Downstream exits**:
-- Core logic in `.so` → `ida-reverse/` or `radare2/`
-- Dynamic hook/validation required → `reverse-engineering/tools-dynamic.md` (Frida section)
-- General reverse-engineering methodology → `reverse-engineering/SKILL.md`
+This skill covers Java-layer APK analysis and Frida dynamic hooks. Route to other skills when:
 
-**Sibling modules**: `reverse-engineering/` (for `.so` analysis and advanced Frida usage)
+- Core logic lives in `.so` files — use a native binary analysis skill (IDA, Ghidra, radare2)
+- Dynamic hooking or validation is the primary task — use a dedicated Frida skill
+- General reverse-engineering methodology guidance is needed — consult a broader reverse-engineering skill
 
 ---
 
 ## On-Demand Bootstrap
 
-This skill's entry scripts are integrated with the unified bootstrap system. When tools are missing, the scripts do not fail immediately and instead automatically attempt installation.
+This skill's entry scripts can optionally install missing tools. When a required tool is not found, the bootstrap script asks the user before attempting automatic installation.
 
 ### Automation Boundaries
 
 | Tool | Auto-install supported | Installation method | Notes |
 |------|------------------------|---------------------|-------|
-| jadx | ✓ | GitHub Release ZIP | Automatically downloads and extracts to `%USERPROFILE%\Tools\jadx\` |
-| apktool | ✓ | GitHub Release JAR + wrapper | Automatically downloads the jar and generates a bat file under `%USERPROFILE%\Tools\apktool\` |
+| jadx | ✓ | apt / brew / manual download | Windows: manual download from GitHub; Linux: `apt install jadx` |
+| apktool | ✓ | apt / brew / manual download | Windows: manual download from apktool.org |
 | frida / frida-ps | ✓ | pip install frida-tools | Requires Python to be installed |
-| adb | ✓ | winget / fallback path | Automatically installs Android Platform-Tools |
-| zipalign | ✗ | Manual Android Build-Tools installation required | `sdkmanager "build-tools;35.0.0"` |
+| adb | ✓ | apt / brew / winget | Windows: winget; Linux: `apt install adb` |
+| zipalign | ✗ | Manual Android Build-Tools installation required | `sdkmanager "build-tools;<version>"` |
 | apksigner | ✗ | Manual Android Build-Tools installation required | Same as above |
 
 ### Bootstrap Trigger Points
 
-- `scripts/decode.ps1`: automatically calls `bootstrap-reverse.ps1` when jadx or apktool is missing
-- `scripts/rebuild-sign-install.ps1`: automatically calls bootstrap when adb or apktool is missing
-- `scripts/frida-run.ps1`: currently still performs manual checks; Frida is usually installed through pip
+- `scripts/decode.ps1` / `scripts/decode.sh`: prompts for install when jadx or apktool is missing
+- `scripts/rebuild-sign-install.ps1` / `scripts/rebuild-sign-install.sh`: prompts when adb or apktool is missing
+- `scripts/frida-run.ps1` / `scripts/frida-run.sh`: prompts when frida is missing
 
 ### When Bootstrap Fails
 
-If automatic installation fails, the script throws a clear error and includes manual installation links. Common reasons:
+If automatic installation fails or the user declines, the script throws a clear error and includes manual installation links. Common reasons:
 
 - Network unavailable (GitHub API / PyPI inaccessible)
-- winget unavailable (Windows version too old)
+- Package manager not available (winget on older Windows, no apt on non-Debian Linux)
 - Java not installed (apktool depends on JDK)
