@@ -5,6 +5,21 @@
 
 ---
 
+## Android 14+ Changes
+
+Android 14 and 15 introduced security restrictions relevant to reverse engineering:
+
+- **`exported` flag mandatory** for broadcast receivers and services targeting Android 14+ (SDK 34)
+- **Foreground service types** must be declared in Manifest (e.g., `dataSync`, `mediaPlayback`)
+- **Partial screen sharing** — apps can no longer silently capture the full screen
+- **Credential Manager** replaces BiometricPrompt in some flows
+- **16KB page size support** (Android 15) — native `.so` files must be aligned for 16KB ELF pages
+- **`network_security_config.xml`** — `cleartextTrafficPermitted` now defaults to `false` in Android 14+; many apps override this in their NSC config file under `res/xml/`
+
+When analyzing modern APKs, check `minSdkVersion` — if ≥34, the above restrictions apply.
+
+---
+
 ## Static Analysis Checklist
 
 ### Manifest Audit

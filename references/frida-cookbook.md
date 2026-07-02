@@ -5,6 +5,25 @@
 
 ---
 
+## Frida Gadget (Non-Root Devices)
+
+When the target device cannot be rooted, use **frida-gadget** instead of frida-server:
+
+1. Download `frida-gadget-<version>-android-<arch>.so` from [Frida releases](https://github.com/frida/frida/releases)
+2. Embed the gadget into the APK's `lib/<arch>/` directory (e.g., `lib/arm64-v8a/libfrida-gadget.so`)
+3. Add `System.loadLibrary("frida-gadget")` to the app's entry point (smali patch)
+4. Optionally create `libfrida-gadget.config.so` in the same directory for script auto-loading:
+   ```json
+   {
+     "interaction": { "type": "listen", "address": "127.0.0.1:27042" }
+   }
+   ```
+5. Rebuild, sign, and install the APK — the gadget listens on the configured port
+
+For automated gadget injection into an existing APK, use [objection](https://github.com/sensepost/objection) (`objection patchapk`).
+
+---
+
 ## General Hook Templates
 
 ### Hook Any Java Method

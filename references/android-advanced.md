@@ -157,7 +157,7 @@ Memory.patchCode(addr, 4, function(code) {
 
 ## SSL Pinning Bypass
 
-### General Approach (Recommended)
+> For ready-to-use Frida SSL bypass scripts, see **[frida-cookbook.md](frida-cookbook.md)**. For automated bypass with FridaBypassKit, see **[frida-bypass-kit.md](frida-bypass-kit.md)**. This section covers the underlying methodology.
 
 ```javascript
 // General Frida SSL Pinning bypass
@@ -217,6 +217,8 @@ Memory.scan(flutter_lib, Module.findModuleByName("libflutter.so").size, pattern,
 ---
 
 ## Root Detection Bypass
+
+> For ready-to-use Frida root detection bypass scripts, see **[frida-cookbook.md](frida-cookbook.md)**. This section covers the underlying detection methods and general approaches.
 
 ### Common Detection Methods
 
