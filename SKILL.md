@@ -21,6 +21,7 @@ Prefer this skill when the task belongs to one of the following scenarios:
 - Inspect and modify smali
 - Rebuild an APK
 - Use Frida for Java/native dynamic hooks
+- Use NPatch for non-root Xposed module integration and method hooking
 - Switch to native analysis when the APK contains `.so` files
 
 ## Required CLI Tools
@@ -228,6 +229,23 @@ adb shell pm list packages
 adb logcat
 adb pull /data/local/tmp/file .
 ```
+
+### `NPatch`
+
+Used for:
+
+- Non-root Xposed module integration (rootless LSPosed framework)
+- Method hooking without root access by injecting dex and so files into the target APK
+- Patching APKs via CLI (`java -jar npatch.jar`) or Android manager app
+
+Common commands:
+
+```bash
+# CLI patching (requires Java)
+java -jar npatch.jar --input app.apk --output patched.apk
+```
+
+NPatch is an alternative to frida-gadget for users who prefer Xposed-style hooks without root. See [NPatch GitHub](https://github.com/7723mod/NPatch) for the full framework source and documentation. The patch output follows the same `rebuild-sign-install` workflow as apktool-modified APKs.
 
 ## Recommended Workflow
 

@@ -53,6 +53,15 @@ bash scripts/frida-run.sh --usb --spawn --package com.example.app --script hooks
 | Rebuild, sign, install | `scripts/rebuild-sign-install.ps1` | `scripts/rebuild-sign-install.sh` |
 | Manifest summary | `scripts/manifest-summary.ps1` | `scripts/manifest-summary.sh` |
 
+## Non-Root Solutions
+
+| Tool | Description |
+|------|-------------|
+| [frida-gadget](https://frida.re/docs/gadget/) | Embed Frida into the APK for non-root dynamic analysis |
+| [NPatch](https://github.com/7723mod/NPatch) | Rootless LSPosed framework — insert dex/so for Xposed hooks without root |
+
+For non-root devices, prefer frida-gadget for Frida-based hooks and NPatch for Xposed-style module integration.
+
 All scripts output `key=value` lines to stdout. See [SKILL.md](SKILL.md) for detailed output format documentation.
 
 ## References

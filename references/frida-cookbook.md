@@ -22,6 +22,8 @@ When the target device cannot be rooted, use **frida-gadget** instead of frida-s
 
 For automated gadget injection into an existing APK, use [objection](https://github.com/sensepost/objection) (`objection patchapk`).
 
+> **Alternative:** [NPatch](https://github.com/7723mod/NPatch) provides a rootless LSPosed framework for Xposed-style hooking without frida. Use NPatch when you need Xposed module compatibility or prefer Java-level hooking through the LSPosed interface. See [NPatch GitHub](https://github.com/HSSkyBoy/NPatch) for details.
+
 ---
 
 ## General Hook Templates
