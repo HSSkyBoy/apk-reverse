@@ -1,438 +1,396 @@
 ---
 name: apk-reverse
 description: >
-  Performs Android APK reverse engineering in a CLI environment. Covers APK
-  unpacking, Java decompilation, smali modification, rebuilding, Frida dynamic
-  hooks, and native .so analysis. Use when the user wants to "reverse an APK",
-  "decompile an Android app", "analyze APK logic", "hook Android methods with
-  Frida", "bypass SSL pinning", "bypass root detection", "modify smali code",
-  "rebuild and sign an APK", or "inspect AndroidManifest".
+  Unified reverse engineering toolkit covering Android APK decompilation,
+  native .so/ELF binary analysis, and general reverse engineering techniques.
+  Use for APK unpacking, Java/smali modification, Frida hooking, native binary
+  reversing, CTF challenges, and anti-analysis bypass.
 ---
 
-# APK Reverse Engineering CLI Work Specification
+# Reverse Engineering Toolkit
 
-## Scope
+## Overview
 
-Prefer this skill when the task belongs to one of the following scenarios:
+This skill is organised into three major parts. Start with the part that
+matches your target, then cross-reference as needed.
 
-- Analyze the Java business logic of an APK
-- Locate login, signing, risk-control, certificate validation, or root-detection logic
-- Inspect and modify `AndroidManifest.xml`
-- Inspect and modify smali
-- Rebuild an APK
-- Use Frida for Java/native dynamic hooks
-- Use NPatch for non-root Xposed module integration and method hooking
-- Switch to native analysis when the APK contains `.so` files
+| Part | When to Use | Entry Point |
+|------|-------------|-------------|
+| **Part 1: APK** | Android APK reversing — Java/smali, AndroidManifest, Frida hooks, rebuild | Start here for any `.apk` |
+| **Part 2: SO** | Native `.so` / ELF / PE / Mach-O binary analysis — GDB, r2, Ghidra, Unicorn, anti-debug | Switch here when core logic lives in native code |
+| **Part 3: General** | CTF patterns, language-specific RE (Python/WASM/.NET), platform RE (macOS/IoT), crypto tools, AI-assisted RE | Reference here for non-APK, non-native RE tasks |
 
-## Required CLI Tools
+### Prerequisites
 
-- `jadx` (latest release recommended)
-- `apktool` (latest release recommended)
-- `frida` / `frida-ps` (latest via `pip install frida-tools`)
-- `adb`
-- `java` (JDK 11+)
+| Tool | Purpose | Part |
+|------|---------|------|
+| `jadx` | Java decompilation | APK |
+| `apktool` | APK decode/rebuild | APK |
+| `frida-tools` | Dynamic instrumentation | APK / SO |
+| `adb` | Android device interaction | APK |
+| `radare2` / `rizin` | CLI binary analysis | SO |
+| `gdb` / `pwndbg` | Dynamic debugging | SO |
+| `Ghidra` | Decompilation | SO |
+| `angr` | Symbolic execution | SO |
+| `Unicorn` / `Qiling` | Emulation | SO |
 
-## When to Prefer Scripts
+---
 
-The following workflows are frequent and error-prone, so prefer the scripts bundled with this skill. All scripts have both PowerShell (`.ps1`) and Bash (`.sh`) versions — use `.ps1` on Windows and `.sh` on Linux/macOS.
+## Part 1: APK Reverse Engineering
 
-- Run `jadx + apktool` in one pass, write results to disk, and generate a summary: `scripts/decode.ps1` / `scripts/decode.sh`
-- Frida device check, process listing, spawn/attach injection: `scripts/frida-run.ps1` / `scripts/frida-run.sh`
-- Rebuild, align, sign, and install an APK: `scripts/rebuild-sign-install.ps1` / `scripts/rebuild-sign-install.sh`
-- Quickly extract key Manifest components and permissions: `scripts/manifest-summary.ps1` / `scripts/manifest-summary.sh`
+### Tools
 
-Keep the following one-line commands as direct calls without wrapping them in dedicated scripts:
+- `jadx` — Java decompilation and reading
+- `apktool` — APK decode, smali inspection, rebuild
+- `frida` / `frida-ps` — Dynamic Java method hooking
+- `adb` — Device connection, install, logcat, file pull
+- `NPatch` — Non-root Xposed module integration
+- `apksigner` / `zipalign` — Signing and alignment (manual install via Android Build-Tools)
 
-- `adb devices`
-- `adb logcat`
-- `frida-ps -U`
-- `jadx --version`
-- `apktool --version`
+### Bundled Scripts
 
-## Bundled Scripts
+All scripts have PowerShell (`.ps1`) and Bash (`.sh`) versions. Use `.ps1` on
+Windows, `.sh` on Linux/macOS.
 
-### `scripts/decode.ps1` / `scripts/decode.sh`
+| Script | Purpose |
+|--------|---------|
+| `scripts/decode.ps1` / `.sh` | Run `jadx` + `apktool` in one pass, write results to disk, generate summary |
+| `scripts/frida-run.ps1` / `.sh` | Device check, process listing, spawn/attach injection |
+| `scripts/rebuild-sign-install.ps1` / `.sh` | Rebuild, align, sign, and optionally install APK |
+| `scripts/manifest-summary.ps1` / `.sh` | Extract key Manifest components and permissions |
 
-Purpose:
+#### Script Output Format
 
-- Run `jadx` and `apktool` through a unified entry point
-- By default, create a task output directory next to the original APK
-- Output a summary containing `package`, `java_files`, `smali_dirs`, `so_files`, and related fields
-- Tolerate partial `jadx` decompilation errors when useful artifacts are still produced
+All scripts output `key=value` lines to stdout. Component entries use
+tab-separated fields (`name\texported\tenabled`).
 
-Examples:
+**decode scripts** produce: `task_root`, `jadx_out`, `apktool_out`, `package`,
+`jadx_exit_code`, `apktool_exit_code`, `java_files`, `smali_dirs`, `so_files`,
+`xml_files`, `warning` (on non-zero exit)
+
+**manifest-summary scripts** produce: `package`, `permission_count`,
+`permission=...`, `activity_count`, `activity=name\texported\tenabled`,
+`service_count`, `service=...`, `receiver_count`, `receiver=...`,
+`provider_count`, `provider=...`, `main_activity=...`
+
+**rebuild-sign-install scripts** produce: `unsigned_apk`, `aligned_apk`,
+`signed_apk`, `keystore`, `install_device` (if `--install`)
+
+#### Script Examples
 
 ```powershell
 # Windows (PowerShell)
 pwsh -File ".\scripts\decode.ps1" -ApkPath "D:\DOWNLOAD\app.apk" -Clean
-pwsh -File ".\scripts\decode.ps1" -ApkPath "D:\DOWNLOAD\app.apk" -Name demo -SkipJadx
-```
-
-```bash
-# Linux/macOS (Bash)
-bash scripts/decode.sh app.apk --clean
-bash scripts/decode.sh app.apk --name demo --skip-jadx
-```
-
-### `scripts/frida-run.ps1` / `scripts/frida-run.sh`
-
-Purpose:
-
-- Provide a unified entry point for Frida devices, processes, spawn, and attach modes
-- Avoid confusing handwritten parameters such as `-f`, `-n`, and `-U`
-
-Examples:
-
-```powershell
-# Windows (PowerShell)
-pwsh -File ".\scripts\frida-run.ps1" -ListDevices
-pwsh -File ".\scripts\frida-run.ps1" -Usb -ListProcesses
 pwsh -File ".\scripts\frida-run.ps1" -Usb -Spawn -Package com.example.app -ScriptPath "D:\hooks\test.js"
-```
-
-```bash
-# Linux/macOS (Bash)
-bash scripts/frida-run.sh --list-devices
-bash scripts/frida-run.sh --usb --list-processes
-bash scripts/frida-run.sh --usb --spawn --package com.example.app --script hooks/test.js
-```
-
-### `scripts/rebuild-sign-install.ps1` / `scripts/rebuild-sign-install.sh`
-
-Purpose:
-
-- Rebuild an APK with `apktool b`
-- Align it with `zipalign`
-- Sign and verify it with `apksigner`
-- Optionally install it directly with `adb install`
-
-Examples:
-
-```powershell
-# Windows (PowerShell)
-pwsh -File ".\scripts\rebuild-sign-install.ps1" -ProjectDir "C:\work\apktool_out" -Clean
-pwsh -File ".\scripts\rebuild-sign-install.ps1" -ProjectDir "C:\work\apktool_out" -Install -Reinstall -DeviceSerial "127.0.0.1:7555"
-```
-
-```bash
-# Linux/macOS (Bash)
-bash scripts/rebuild-sign-install.sh apktool_out --clean
-bash scripts/rebuild-sign-install.sh apktool_out --install --reinstall --device "127.0.0.1:7555"
-```
-
-Notes:
-
-- A debug keystore is generated and reused by default
-- The default output is placed next to `ProjectDir`, making it easy to keep the original package, decoded directory, and rebuilt package together
-
-### `scripts/manifest-summary.ps1` / `scripts/manifest-summary.sh`
-
-Purpose:
-
-- Extract the package name
-- List permissions
-- List activities, services, receivers, and providers
-- Mark the main launcher activity
-
-Example:
-
-```powershell
-# Windows (PowerShell)
+pwsh -File ".\scripts\rebuild-sign-install.ps1" -ProjectDir "C:\work\apktool_out" -Install
 pwsh -File ".\scripts\manifest-summary.ps1" -ManifestPath "C:\work\apktool_out\AndroidManifest.xml"
 ```
 
 ```bash
 # Linux/macOS (Bash)
-bash scripts/manifest-summary.sh --manifest work/apktool_out/AndroidManifest.xml
+bash scripts/decode.sh app.apk --clean
+bash scripts/frida-run.sh --usb --spawn --package com.example.app --script hooks/test.js
+bash scripts/rebuild-sign-install.sh apktool_out --install
+bash scripts/manifest-summary.sh --manifest apktool_out/AndroidManifest.xml
 ```
 
-#### Output Format
+### Recommended Workflow
 
-All scripts output `key=value` lines to stdout. Component entries use tab-separated fields (`name\texported\tenabled`).
+#### 1. Triage
 
-**decode scripts** produce: `task_root`, `jadx_out`, `apktool_out`, `package`, `jadx_exit_code`, `apktool_exit_code`, `java_files`, `smali_dirs`, `so_files`, `xml_files`, `warning` (on non-zero exit)
-
-**manifest-summary scripts** produce: `package`, `permission_count`, `permission=...`, `activity_count`, `activity=name\texported\tenabled`, `service_count`, `service=...`, `receiver_count`, `receiver=...`, `provider_count`, `provider=...`, `main_activity=...`
-
-**rebuild-sign-install scripts** produce: `unsigned_apk`, `aligned_apk`, `signed_apk`, `keystore`, `install_device` (if --install)
-
-For `.so`, `lib/arm64-v8a/*.so`, or `lib/armeabi-v7a/*.so` analysis, combine this with:
-
-- `ida-reverse`
-- `radare2`
-
-## Tool Responsibilities
-
-### `jadx`
-
-Used for:
-
-- Java decompilation and reading
-- Searching package names, class names, and method names
-- Understanding high-level APK logic first
-
-Common commands:
+Do not rush into patching or hooking. First determine the APK structure:
 
 ```bash
 jadx -d jadx_out app.apk
-jadx --single-class com.example.LoginActivity -d jadx_out app.apk
-jadx --deobf -d jadx_out app.apk
-```
-
-### `apktool`
-
-Used for:
-
-- Decoding APKs
-- Inspecting and modifying `AndroidManifest.xml`
-- Inspecting and modifying smali
-- Rebuilding APKs
-
-Common commands:
-
-```bash
 apktool d app.apk -o apktool_out
-apktool b apktool_out -o rebuilt.apk
 ```
 
-### `frida`
+Inspect:
+- `AndroidManifest.xml` — package, application, activity, service, receiver
+- `lib/` — whether `.so` files are present (if yes, check Part 2)
+- Key permissions (network, root, SSL)
 
-Used for:
+#### 2. Java Logic Observation
 
-- Dynamically observing Java method calls
-- Hooking native exported functions
-- Bypassing root detection, certificate validation, and anti-debug checks
+Read from `jadx_out` first. Key classes to examine:
+- `MainActivity`, `Application`
+- Login, networking, encryption, risk-control classes
+- Third-party SDK initialisation
 
-Common commands:
+Common keywords: `login`, `sign`, `encrypt`, `cipher`, `token`, `root`,
+`certificate`, `trust`, `okhttp`, `retrofit`, `webview`
 
-```bash
-frida-ps -U
-frida -U -f com.example.app -l hook.js
-frida-trace -U -f com.example.app -j '*!*certificate*'
-```
+#### 3. Smali / Resource Confirmation
 
-### `adb`
-
-Used for:
-
-- Device connection
-- APK installation
-- Log inspection
-- File extraction
-
-Common commands:
-
-```bash
-adb devices
-adb install -r app.apk
-adb shell pm list packages
-adb logcat
-adb pull /data/local/tmp/file .
-```
-
-### `NPatch`
-
-Used for:
-
-- Non-root Xposed module integration (rootless LSPosed framework)
-- Method hooking without root access by injecting dex and so files into the target APK
-- Patching APKs via CLI (`java -jar npatch.jar`) or Android manager app
-
-Common commands:
-
-```bash
-# CLI patching (requires Java)
-java -jar npatch.jar --input app.apk --output patched.apk
-```
-
-NPatch is an alternative to frida-gadget for users who prefer Xposed-style hooks without root. See [NPatch GitHub](https://github.com/7723mod/NPatch) for the full framework source and documentation. The patch output follows the same `rebuild-sign-install` workflow as apktool-modified APKs.
-
-## Recommended Workflow
-
-### 1. Triage
-
-First determine the approximate structure of the APK. Do not rush into patching or hooking.
-
-Recommended actions:
-
-1. Export Java code with `jadx -d jadx_out app.apk`
-2. Export smali and resources with `apktool d app.apk -o apktool_out`
-3. Inspect:
-   - `AndroidManifest.xml`
-   - Main `package`
-   - `application`, `activity`, `service`, and `receiver`
-   - Whether the `lib/` directory contains `.so` files
-
-### 2. Java Logic Observation
-
-Prefer reading from `jadx_out` first:
-
-- `MainActivity`
-- `Application`
-- Login, networking, encryption, and risk-control related classes
-- Third-party SDK initialization classes
-
-Common keywords:
-
-- `login`
-- `sign`
-- `encrypt`
-- `cipher`
-- `token`
-- `root`
-- `certificate`
-- `trust`
-- `okhttp`
-- `retrofit`
-- `webview`
-
-If the Java code is readable, locate the business logic there first.
-
-### 3. Smali and Resource-Layer Confirmation
-
-When `jadx` output is incomplete, heavily obfuscated, or an actual patch is required, switch to `apktool_out`:
-
+When `jadx` output is incomplete or a patch is needed, switch to `apktool_out`:
 - Inspect `smali*/`
 - Inspect `res/values/strings.xml`
 - Inspect `AndroidManifest.xml`
 
 Patch priorities:
-
 - `android:exported`
 - Debug flags
 - Root-detection return values
-- Login validation logic
 - Certificate-validation branches
 
-### 4. Rebuild and Install
-
-After modification:
+#### 4. Rebuild & Install
 
 ```bash
 apktool b apktool_out -o rebuilt.apk
 ```
 
-Or use the script for the full loop:
-
+Or use the full-loop script:
 ```powershell
-pwsh -File "<skill-root>\apk-reverse\scripts\rebuild-sign-install.ps1" -ProjectDir "apktool_out" -Install -Reinstall -DeviceSerial "127.0.0.1:7555"
+pwsh -File ".\scripts\rebuild-sign-install.ps1" -ProjectDir "apktool_out" -Install -Reinstall
 ```
 
-Notes:
+#### 5. Dynamic Hooking (Frida)
 
-- This skill only guarantees the `apktool` rebuild path
-- If the next step requires installing to a real device, a signing process is usually also required
-- If the task enters signing/alignment, add `apksigner` / `zipalign`
-
-### 5. Dynamic Hooking
-
-When static analysis is insufficient, use Frida:
-
+When static analysis is insufficient:
 - Hook login functions
-- Hook key points in `OkHttp` / `Retrofit` / `WebView`
+- Hook OkHttp / Retrofit / WebView
 - Hook `javax.crypto` and `MessageDigest`
-- Hook root-detection functions
-- Hook SSL pinning logic
-
-Principles:
-
-- Hook Java first, then evaluate whether native hooks are needed
-- Print parameters and return values first, then decide whether to actively modify return values
+- Hook root-detection and SSL pinning
 
 Recommendations:
+- Hook Java first, then evaluate native hooks
+- Print parameters and return values first, then modify if needed
+- Prefer `scripts/frida-run.ps1` for stable injection
 
-- Use simple one-off commands directly with `frida-*`
-- Prefer `scripts/frida-run.ps1` for stable and reusable injection workflows
+#### 6. Native .so Routing
 
-### 6. Native `.so` Routing
-
-If the APK contains important `.so` files:
-
-- Use `apktool` or `jadx` to locate `lib/**/*.so`
-- Use `radare2` for exported symbols, strings, and quick triage
-- Use `ida-reverse` for long-running deeper analysis, decompilation, renaming, and type recovery
-
-Switch to native analysis as soon as possible when you see these signals:
-
+If the APK contains important `.so` files, switch to **Part 2** when:
 - The Java layer is only a JNI wrapper
-- The core signing logic is not in Java
-- Key logic disappears after `System.loadLibrary()`
+- Core signing or crypto logic is not in Java
+- Logic disappears after `System.loadLibrary()`
 - Certificate validation or risk-control logic is inside `.so`
+
+### Reference Files
+
+- `references/apk/android-advanced.md` — Native SO/JNI, packers, Flutter/RN
+- `references/apk/apk-security-checklist.md` — OWASP-aligned test checklist
+- `references/apk/frida-bypass-kit.md` — FridaBypassKit integration guide
+- `references/apk/frida-cookbook.md` — Reusable Frida hook scripts by category
+
+---
+
+## Part 2: Native Binary / .SO Analysis
+
+Covers ELF, PE, Mach-O, and any native binary analysis. Use this when you are
+working with `.so` files from an APK, standalone ELF binaries, or any compiled
+native target.
+
+### Tools
+
+| Tool | Purpose | Common Commands |
+|------|---------|-----------------|
+| `radare2` / `rizin` | CLI disassembly, analysis, patching | `r2 ./binary`, `aaa`, `afl`, `pdf @ main` |
+| `gdb` / `pwndbg` / `GEF` | Dynamic debugging | `gdb ./binary`, `start`, `b *main+0xca` |
+| `Ghidra` | Headless decompilation | `analyzeHeadless project/ tmp -import binary -postScript script.py` |
+| `Unicorn` | CPU emulation for code snippets | Python API, see reference notes |
+| `Qiling` | Cross-platform emulation with OS support | `ql.run()` |
+| `Frida` | Native function hooking, memory scanning | `frida binary`, `Interceptor.attach()` |
+| `angr` | Symbolic execution, CFG recovery | `proj = angr.Project('./binary')` |
+
+### Quick Wins (Try First)
+
+```bash
+# Plaintext extraction
+strings binary | grep -iE "flag|secret|password"
+rabin2 -z binary | grep -i "flag"
+
+# Dynamic triage — often reveals behaviour without full reversing
+ltrace ./binary
+strace -f -s 500 ./binary
+
+# Run with test inputs
+./binary AAAA
+echo "test" | ./binary
+```
+
+### Initial Analysis
+
+```bash
+file binary              # Type, architecture
+checksec --file=binary   # Security features
+rabin2 -I binary         # Binary info
+strings binary           # Extract strings
+```
+
+### Analysis Workflow
+
+1. **Strings extraction** — many easy targets have readable flags
+2. **Dynamic triage** — `ltrace`/`strace` often reveals behaviour
+3. **Frida hooking** — hook `strcmp`/`memcmp` to capture expected values
+4. **Symbolic execution** — `angr` solves many flag-checkers automatically
+5. **Emulation** — `Qiling`/`Unicorn` for foreign arch or anti-debug bypass
+6. **Map control flow** — before modifying execution
+7. **Automate** — via r2pipe, Frida, angr, Python scripting
+
+### Key Topics & Reference Files
+
+| Topic | File |
+|-------|------|
+| ELF structure, headers, sections, dynamic linking | `references/so/elf-analysis.md` |
+| GDB, r2, Ghidra, Unicorn, Python bytecode, WASM, .NET, packers | `references/so/tools.md` |
+| Frida, angr, lldb, x64dbg, Qiling, Triton, Intel Pin | `references/so/tools-dynamic.md` |
+| VMProtect, Themida, BinDiff, deobfuscation, RetDec, LLVM lifting | `references/so/tools-advanced.md` |
+| Linux/Windows anti-debug, anti-VM, anti-DBI, integrity checks | `references/so/anti-analysis.md` |
+| Go binary reversing (GoReSym, memory layout, goroutines) | `references/so/go-reverse.md` |
+| Kernel driver reversing (WDM, KMDF, minifilter, Linux .ko) | `references/so/kernel-driver-reverse.md` |
+| Compiled languages (Rust, Swift, Kotlin/Native, Haskell, C++) | `references/so/languages-compiled.md` |
+| ARM64/AArch64, RISC-V, MIPS, MBR/bootloader | `references/so/platforms-hardware.md` |
+
+### Common Encryption Patterns
+
+- XOR with single byte — try all 256 values
+- XOR with known plaintext (`flag{`, `CTF{`)
+- RC4 with hardcoded key
+- Custom permutation + XOR
+- XOR with position index (`^ i` or `^ (i & 0xff)`)
+
+For more CTF-specific patterns, see `references/general/patterns*.md`.
+
+### PIE Binary Debugging
+
+```bash
+gdb ./binary
+start                    # Forces PIE base resolution
+b *main+0xca            # Relative to main
+run
+```
+
+### Memory Dumping Strategy
+
+Let the program compute the answer, then dump it. Break at the final comparison
+(`b *main+OFFSET`), enter any input of correct length, then `x/s $rsi` to dump
+the computed value.
+
+---
+
+## Part 3: General Reverse Engineering
+
+Cross-cutting reference material for CTF challenges, non-native RE targets,
+and specialised techniques. Part 3 does not duplicate Part 2's tool guides;
+it adds challenge patterns, language specifics, platform knowledge, and
+meta-resources.
+
+### CTF Challenge Patterns
+
+| File | Content |
+|------|---------|
+| `references/general/patterns.md` | Custom VMs, XOR ciphers, S-Box, self-modifying code, LLVM obfuscation, anti-debug patterns |
+| `references/general/patterns-ctf.md` | Emulator opcodes, LD_PRELOAD key extraction, RC4+VM loaders, kernel module mazes |
+| `references/general/patterns-ctf-2.md` | Multi-layer decrypt, stack string deobfuscation, lattice/circuit patterns, ROP obfuscation |
+| `references/general/patterns-ctf-3.md` | Z3 circuits, keyboard LED Morse, GLSL shader VM, BPF JIT, DNN inversion |
+
+### Language-Specific Techniques
+
+| File | Target Languages |
+|------|-----------------|
+| `references/general/languages.md` | Python bytecode, WASM, HarmonyOS HAP/ABC, Brainfuck/esolangs, UEFI, DOS, FRACTRAN |
+| `references/general/languages-platforms.md` | Android JNI obfuscation, Electron, Node.js, Verilog, Ruby/Perl, Rust serde_json, Intel SGX |
+
+### Platform-Specific Reversing
+
+| File | Platforms |
+|------|-----------|
+| `references/general/platforms.md` | macOS/iOS (Mach-O, dyld, Swift), embedded/IoT (firmware, UART, RTOS), automotive CAN bus |
+
+### Crypto & Encoding Tools
+
+`references/general/crypto-decode-tools.md` — Ciphey, CyberChef, dcode.fr,
+Base64/32/16, Caesar, Vigenère, XOR, AES weak keys, Morse, hash identification.
+Written in Chinese (中文).
+
+### AI-Assisted Reverse Engineering
+
+`references/general/ai-assisted-re.md` — LLM4Decompile, Decaf (compiler-feedback
+verification), constraint-guided multi-agent decompilation, REMEND equation
+extraction. Written in Chinese (中文).
+
+### Quick Reference
+
+`references/general/field-notes.md` — Binary type identification (pyc, WASM,
+APK, Flutter, .NET, UPX, Tauri), anti-debugging bypass, S-Box/keystream
+patterns, custom VM analysis, signal-based binary exploration, x86-64 gotchas,
+iterative solver patterns, Unicorn emulation notes.
+
+### Resources
+
+`references/general/awesome-re-resources.md` — Curated lists of RE tools,
+tutorials, and communities (awesome-reversing, awesome-reverse-engineering,
+malware-analysis resources, ARM exploitation guides).
+
+---
+
+## Bootstrap
+
+This skill's scripts can optionally install missing tools. When a required tool
+is not found, the bootstrap script asks before attempting automatic installation.
+
+### Automation Boundaries
+
+| Tool | Auto-install | Method | Notes |
+|------|-------------|--------|-------|
+| jadx | ✓ | apt / brew / manual | Windows: manual download from GitHub |
+| apktool | ✓ | apt / brew / manual | Windows: manual download from apktool.org |
+| frida-tools | ✓ | pip | Requires Python |
+| adb | ✓ | apt / brew / winget | |
+| zipalign | ✗ | Manual Android Build-Tools | `sdkmanager "build-tools;<version>"` |
+| apksigner | ✗ | Manual Android Build-Tools | Same as above |
+| radare2 | ✓ | apt / brew / winget | |
+| gdb | ✓ | apt / brew | Windows: manual or WSL |
+| Ghidra | ✗ | Manual download | Requires JDK 17+ |
+
+### Bootstrap Trigger Points
+
+- `scripts/decode.ps1` / `.sh` — prompts when jadx or apktool is missing
+- `scripts/rebuild-sign-install.ps1` / `.sh` — prompts when adb or apktool is missing
+- `scripts/frida-run.ps1` / `.sh` — prompts when frida is missing
+
+### When Bootstrap Fails
+
+If automatic installation fails or the user declines, the script throws a clear
+error with manual installation links. Common reasons: network unavailable,
+package manager not available, Java or Python not installed.
+
+---
+
+## Re-routing Logic
+
+| You encounter… | Start here | Then route to… |
+|----------------|------------|----------------|
+| `.apk` file | **Part 1 (APK)** | Part 2 if `.so` contains core logic |
+| `.so` / ELF / PE / Mach-O | **Part 2 (SO)** | Part 3 for CTF patterns or anti-debug |
+| APK with `.so` files | **Part 1 (APK)** triage, then Part 2 for `.so` analysis | Part 3 for anti-analysis patterns |
+| CTF reversing challenge | **Part 2 (SO)** triage | Part 3 for patterns / language specifics |
+| Python bytecode, WASM, .NET | **Part 3 (General)** → `languages.md` | Part 2 if native tools needed |
+| Anti-debug / anti-VM bypass | **Part 2 (SO)** → `anti-analysis.md` | |
+| Symbolic execution / emulation | **Part 2 (SO)** → `tools-dynamic.md` | |
+| Flutter / React Native APK | **Part 1 (APK)** → `android-advanced.md` | |
+
+---
 
 ## Output Requirements
 
 The final response must at least explain:
 
-- Entry components and key classes
-- Whether the key logic is in Java, smali, or `.so`
-- Confirmed sensitive points: login, signing, root, SSL, WebView, JNI
-- If a patch was made, what was changed
-- If a hook was made, which class/method/exported function was hooked
+- **APK analysis:** entry components, key classes, whether key logic is in Java,
+  smali, or `.so`, sensitive points (login, signing, root, SSL, WebView, JNI),
+  what was patched or hooked
+- **Native analysis:** binary type, architecture, notable functions/strings,
+  anti-debug techniques encountered, bypass used, what was hooked or patched
+- **General analysis:** challenge type, relevant patterns, toolchain used,
+  solved approach
+
+---
 
 ## Prohibited Practices
 
 - Do not blindly modify smali at the start
 - Do not write hooks before checking the Manifest and main entry point
-- Do not treat incomplete Java decompilation as proof that the logic cannot be analyzed
-- Do not keep forcing Java-layer analysis when `.so` clearly carries the core logic
-
-## Quick Command Notes
-
-```bash
-# Java decompilation
-jadx -d jadx_out app.apk
-
-# APK decoding
-apktool d app.apk -o apktool_out
-
-# APK rebuild
-apktool b apktool_out -o rebuilt.apk
-
-# Devices and processes
-adb devices
-frida-ps -U
-
-# Start and inject
-frida -U -f com.example.app -l hook.js
-```
-
----
-
-## Routing Context
-
-This skill covers Java-layer APK analysis and Frida dynamic hooks. Route to other skills when:
-
-- Core logic lives in `.so` files — use a native binary analysis skill (IDA, Ghidra, radare2)
-- Dynamic hooking or validation is the primary task — use a dedicated Frida skill
-- General reverse-engineering methodology guidance is needed — consult a broader reverse-engineering skill
-
----
-
-## On-Demand Bootstrap
-
-This skill's entry scripts can optionally install missing tools. When a required tool is not found, the bootstrap script asks the user before attempting automatic installation.
-
-### Automation Boundaries
-
-| Tool | Auto-install supported | Installation method | Notes |
-|------|------------------------|---------------------|-------|
-| jadx | ✓ | apt / brew / manual download | Windows: manual download from GitHub; Linux: `apt install jadx` |
-| apktool | ✓ | apt / brew / manual download | Windows: manual download from apktool.org |
-| frida / frida-ps | ✓ | pip install frida-tools | Requires Python to be installed |
-| adb | ✓ | apt / brew / winget | Windows: winget; Linux: `apt install adb` |
-| zipalign | ✗ | Manual Android Build-Tools installation required | `sdkmanager "build-tools;<version>"` |
-| apksigner | ✗ | Manual Android Build-Tools installation required | Same as above |
-
-### Bootstrap Trigger Points
-
-- `scripts/decode.ps1` / `scripts/decode.sh`: prompts for install when jadx or apktool is missing
-- `scripts/rebuild-sign-install.ps1` / `scripts/rebuild-sign-install.sh`: prompts when adb or apktool is missing
-- `scripts/frida-run.ps1` / `scripts/frida-run.sh`: prompts when frida is missing
-
-### When Bootstrap Fails
-
-If automatic installation fails or the user declines, the script throws a clear error and includes manual installation links. Common reasons:
-
-- Network unavailable (GitHub API / PyPI inaccessible)
-- Package manager not available (winget on older Windows, no apt on non-Debian Linux)
-- Java not installed (apktool depends on JDK)
+- Do not treat incomplete Java decompilation as proof the logic cannot be analysed
+- Do not keep forcing Java-layer analysis when `.so` clearly carries core logic
+- Do not jump to full reverse engineering before trying strings and dynamic triage
+- Do not use `angr` before understanding the binary's structure
