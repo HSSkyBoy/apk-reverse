@@ -58,6 +58,8 @@ Windows, `.sh` on Linux/macOS.
 | `scripts/frida-run.ps1` / `.sh` | Device check, process listing, spawn/attach injection |
 | `scripts/rebuild-sign-install.ps1` / `.sh` | Rebuild, align, sign, and optionally install APK |
 | `scripts/manifest-summary.ps1` / `.sh` | Extract key Manifest components and permissions |
+| `scripts/start.ps1` | MCP server management — check tools, bootstrap, report status |
+| `scripts/open.ps1` | MCP file opening — detect type, route to decode pipeline |
 
 #### Script Output Format
 
@@ -76,6 +78,14 @@ tab-separated fields (`name\texported\tenabled`).
 **rebuild-sign-install scripts** produce: `unsigned_apk`, `aligned_apk`,
 `signed_apk`, `keystore`, `install_device` (if `--install`)
 
+**start scripts** produce: `status=ready|degraded|unavailable`, plus per-tool
+`<tool>=available|missing` lines for `jadx`, `apktool`, `frida`, `adb`,
+`python`, `java`, `zipalign`, `apksigner`, `keytool`
+
+**open scripts** produce: `type=apk|elf|pe|macho|other`, `path`, `mime`,
+`size`, `decode_target=apk|so|none`; with `--Decode` on APK, additionally
+produces all decode.ps1 output keys
+
 #### Script Examples
 
 ```powershell
@@ -84,6 +94,10 @@ pwsh -File ".\scripts\decode.ps1" -ApkPath "D:\DOWNLOAD\app.apk" -Clean
 pwsh -File ".\scripts\frida-run.ps1" -Usb -Spawn -Package com.example.app -ScriptPath "D:\hooks\test.js"
 pwsh -File ".\scripts\rebuild-sign-install.ps1" -ProjectDir "C:\work\apktool_out" -Install
 pwsh -File ".\scripts\manifest-summary.ps1" -ManifestPath "C:\work\apktool_out\AndroidManifest.xml"
+pwsh -File ".\scripts\start.ps1"
+pwsh -File ".\scripts\start.ps1" -CheckOnly
+pwsh -File ".\scripts\open.ps1" -TargetPath "D:\DOWNLOAD\app.apk" -Decode -Clean
+pwsh -File ".\scripts\open.ps1" -TargetPath "D:\DOWNLOAD\app.apk" -DetectOnly
 ```
 
 ```bash
@@ -348,6 +362,7 @@ is not found, the bootstrap script asks before attempting automatic installation
 - `scripts/decode.ps1` / `.sh` — prompts when jadx or apktool is missing
 - `scripts/rebuild-sign-install.ps1` / `.sh` — prompts when adb or apktool is missing
 - `scripts/frida-run.ps1` / `.sh` — prompts when frida is missing
+- `scripts/start.ps1` — prompts for all critical tools (jadx, apktool, frida, adb)
 
 ### When Bootstrap Fails
 

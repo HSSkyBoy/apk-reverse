@@ -3,7 +3,8 @@
 # Source this file in other scripts: source "$SCRIPT_DIR/lib/tools.sh"
 
 SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-BOOTSTRAP_PATH="${BOOTSTRAP_PATH:-$SCRIPT_DIR/bootstrap-reverse.sh}"
+_TOOLS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BOOTSTRAP_PATH="${BOOTSTRAP_PATH:-$_TOOLS_LIB_DIR/../bootstrap-reverse.sh}"
 
 ensure_tool() {
     local name="$1"
