@@ -185,6 +185,7 @@ If the APK contains important `.so` files, switch to **Part 2** when:
 - `references/apk/apk-security-checklist.md` — OWASP-aligned test checklist
 - `references/apk/frida-bypass-kit.md` — FridaBypassKit integration guide
 - `references/apk/frida-cookbook.md` — Reusable Frida hook scripts by category
+- `references/apk/smali-apk-patching.md` — Dalvik opcode patching, signature bypass, debug & log injection
 
 ---
 
@@ -201,6 +202,7 @@ native target.
 | `radare2` / `rizin` | CLI disassembly, analysis, patching | `r2 ./binary`, `aaa`, `afl`, `pdf @ main` |
 | `gdb` / `pwndbg` / `GEF` | Dynamic debugging | `gdb ./binary`, `start`, `b *main+0xca` |
 | `Ghidra` | Headless decompilation | `analyzeHeadless project/ tmp -import binary -postScript script.py` |
+| `UniDbg` | Android ARM32/ARM64 .so emulation & JNI simulation | Java API, Dobby hooking, sign algorithm extraction |
 | `Unicorn` | CPU emulation for code snippets | Python API, see reference notes |
 | `Qiling` | Cross-platform emulation with OS support | `ql.run()` |
 | `Frida` | Native function hooking, memory scanning | `frida binary`, `Interceptor.attach()` |
@@ -237,7 +239,7 @@ strings binary           # Extract strings
 2. **Dynamic triage** — `ltrace`/`strace` often reveals behaviour
 3. **Frida hooking** — hook `strcmp`/`memcmp` to capture expected values
 4. **Symbolic execution** — `angr` solves many flag-checkers automatically
-5. **Emulation** — `Qiling`/`Unicorn` for foreign arch or anti-debug bypass
+5. **Emulation (UniDbg / Qiling / Unicorn)** — execute and extract crypto/signing routines without physical devices
 6. **Map control flow** — before modifying execution
 7. **Automate** — via r2pipe, Frida, angr, Python scripting
 
@@ -246,6 +248,7 @@ strings binary           # Extract strings
 | Topic | File |
 |-------|------|
 | ELF structure, headers, sections, dynamic linking | `references/so/elf-analysis.md` |
+| UniDbg ARM32/ARM64 .so emulation, JNI stubbing, Dobby hooking | `references/so/unidbg-emulator.md` |
 | GDB, r2, Ghidra, Unicorn, Python bytecode, WASM, .NET, packers | `references/so/tools.md` |
 | Frida, angr, lldb, x64dbg, Qiling, Triton, Intel Pin | `references/so/tools-dynamic.md` |
 | VMProtect, Themida, BinDiff, deobfuscation, RetDec, LLVM lifting | `references/so/tools-advanced.md` |
