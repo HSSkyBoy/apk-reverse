@@ -6,11 +6,34 @@ SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 _TOOLS_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BOOTSTRAP_PATH="${BOOTSTRAP_PATH:-$_TOOLS_LIB_DIR/../bootstrap-reverse.sh}"
 
+# Look for a tool in well-known install roots when it is not on PATH.
+# Roots: $REVERSE_TOOLS_DIR, ~/Tools, /e/Tools (Git Bash), /mnt/e/Tools (WSL).
+# Accepts <name> scripts (also inside versioned <name>*/bin) and <name>*.jar (wrapped in a shell function).
+_discover_tool() {
+    local name="$1" root dir jar
+    for root in "${REVERSE_TOOLS_DIR:-}" "$HOME/Tools" "/e/Tools" "/mnt/e/Tools"; do
+        [[ -n "$root" && -d "$root" ]] || continue
+        for dir in "$root" "$root/$name"* "$root/$name"*/bin; do
+            [[ -d "$dir" ]] || continue
+            if [[ -f "$dir/$name" && -x "$dir/$name" ]]; then
+                export PATH="$dir:$PATH"
+                return 0
+            fi
+            jar=$(ls "$dir"/"$name"*.jar 2>/dev/null | sort -r | head -n 1)
+            if [[ -n "$jar" ]] && command -v java &>/dev/null; then
+                eval "$name() { java -jar \"$jar\" \"\$@\"; }"
+                return 0
+            fi
+        done
+    done
+    return 1
+}
+
 ensure_tool() {
     local name="$1"
     local manual_hint="${2:-}"
 
-    if command -v "$name" &>/dev/null; then
+    if command -v "$name" &>/dev/null || _discover_tool "$name"; then
         return 0
     fi
 

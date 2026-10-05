@@ -137,8 +137,8 @@ if (-not $CheckOnly) {
 
 # Compute overall status
 $criticalTools = @('jadx', 'apktool', 'frida', 'adb')
-$allReady = ($criticalTools | Where-Object { -not $tools[$_] }).Count -eq 0
-$anyReady = ($criticalTools | Where-Object { $tools[$_] }).Count -gt 0
+$allReady = @($criticalTools | Where-Object { -not $tools[$_] }).Count -eq 0
+$anyReady = @($criticalTools | Where-Object { $tools[$_] }).Count -gt 0
 
 if ($allReady) {
     $status = 'ready'
@@ -150,5 +150,5 @@ if ($allReady) {
 
 "status=$status"
 foreach ($tool in $tools.Keys | Sort-Object) {
-    "$tool=$($tools[$tool] ? 'available' : 'missing')"
+    "$tool=$(if ($tools[$tool]) { 'available' } else { 'missing' })"
 }

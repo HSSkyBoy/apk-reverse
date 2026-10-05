@@ -14,53 +14,10 @@ function Resolve-ReverseToolSpec {
         }
     }
 
-    # Fallback: check %USERPROFILE%\Tools\ for common tool installs
-    $toolDir = Join-Path $env:USERPROFILE "Tools\$Name"
-    if (Test-Path -LiteralPath $toolDir) {
-        $bat = Join-Path $toolDir "$Name.bat"
-        $exe = Join-Path $toolDir "$Name.exe"
-        $jar = Join-Path $toolDir "$Name.jar"
-
-        if (Test-Path -LiteralPath $bat) {
-            return [PSCustomObject]@{
-                Available  = $true
-                Command    = $bat
-                PrefixArgs = @()
-            }
-        }
-        if (Test-Path -LiteralPath $exe) {
-            # jadx installs a lib/ directory alongside the exe
-            if ($Name -eq 'jadx') {
-                return [PSCustomObject]@{
-                    Available  = $true
-                    Command    = $exe
-                    PrefixArgs = @()
-                }
-            }
-            return [PSCustomObject]@{
-                Available  = $true
-                Command    = $exe
-                PrefixArgs = @()
-            }
-        }
-        # Wrap .jar with java
-        if (Test-Path -LiteralPath $jar) {
-            return [PSCustomObject]@{
-                Available  = $true
-                Command    = 'java'
-                PrefixArgs = @('-jar', $jar)
-            }
-        }
-
-        # Check for standalone jar files (e.g., apktool_2.x.x.jar)
-        $jars = Get-ChildItem -LiteralPath $toolDir -Filter '*.jar' -ErrorAction SilentlyContinue
-        if ($jars -and $jars.Count -gt 0) {
-            return [PSCustomObject]@{
-                Available  = $true
-                Command    = 'java'
-                PrefixArgs = @('-jar', $jars[0].FullName)
-            }
-        }
+    # Fallback: well-known install roots (REVERSE_TOOLS_DIR, %USERPROFILE%\Tools, E:\Tools)
+    foreach ($root in Get-ReverseToolRoots) {
+        $found = Find-ReverseToolInRoot -Root $root -Name $Name
+        if ($found) { return $found }
     }
 
     # Not found
@@ -78,6 +35,46 @@ function Find-ToolOnPath {
     $cmd = Get-Command $Name -ErrorAction SilentlyContinue
     if ($cmd) {
         return $cmd.Source
+    }
+    return $null
+}
+
+# Install roots searched when a tool is not on PATH. Override with REVERSE_TOOLS_DIR.
+function Get-ReverseToolRoots {
+    $roots = @()
+    if ($env:REVERSE_TOOLS_DIR) { $roots += $env:REVERSE_TOOLS_DIR }
+    if ($env:USERPROFILE) { $roots += (Join-Path $env:USERPROFILE 'Tools') }
+    $roots += 'E:\Tools'
+    $roots | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -Unique
+}
+
+# Looks for <Name>.bat/.cmd/.exe or <Name>*.jar in the root itself, in <Name>*\ and <Name>*\bin\
+# (handles versioned folders such as jadx-1.5.6\bin\jadx.bat and apktool_3.0.2.jar next to apktool.bat).
+function Find-ReverseToolInRoot {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $dirs = @($Root)
+    $dirs += Get-ChildItem -LiteralPath $Root -Directory -Filter "$Name*" -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending | ForEach-Object { $_.FullName }
+
+    foreach ($dir in $dirs) {
+        foreach ($base in @($dir, (Join-Path $dir 'bin'))) {
+            if (-not (Test-Path -LiteralPath $base)) { continue }
+            foreach ($ext in @('bat', 'cmd', 'exe')) {
+                $candidate = Join-Path $base "$Name.$ext"
+                if (Test-Path -LiteralPath $candidate) {
+                    return [PSCustomObject]@{ Available = $true; Command = $candidate; PrefixArgs = @() }
+                }
+            }
+            $jar = Get-ChildItem -LiteralPath $base -Filter "$Name*.jar" -File -ErrorAction SilentlyContinue |
+                Sort-Object Name -Descending | Select-Object -First 1
+            if ($jar) {
+                return [PSCustomObject]@{ Available = $true; Command = 'java'; PrefixArgs = @('-jar', $jar.FullName) }
+            }
+        }
     }
     return $null
 }
