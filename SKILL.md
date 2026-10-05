@@ -34,6 +34,28 @@ matches your target, then cross-reference as needed.
 | `angr` | Symbolic execution | SO |
 | `Unicorn` / `Qiling` | Emulation | SO |
 
+### Where tools are installed (Windows)
+
+**Before downloading or installing anything, run `scripts/start.ps1 -CheckOnly`** — most tools are
+already installed locally and the scripts know where to look. When a tool is not on `PATH`, the
+scripts search these roots in order (see `scripts/lib/ToolDiscovery.ps1`):
+
+1. `%REVERSE_TOOLS_DIR%` (if set)
+2. `%USERPROFILE%\Tools`
+3. `E:\Tools`
+
+Inside a root they accept `<name>.bat/.cmd/.exe`, `<name>*.jar`, and versioned folders with an
+optional `bin\` (e.g. `E:\Tools\jadx-1.5.6\bin\jadx.bat`, `E:\Tools\apktool.bat` +
+`apktool_3.0.2.jar`). If you need a tool directly (outside the scripts), call it by these paths.
+
+**When a tool is reported missing, do not download or install it yourself — ask the user first:**
+"Have you already installed `<tool>`? If so, where?" Users often have it in a folder the
+scripts do not know about (then use that path and extend `ToolDiscovery.ps1` / `tools.sh`
+and this list). Only offer to download it if the user confirms it is not installed.
+
+The scripts run on Windows PowerShell 5.1 as well as `pwsh`; when `pwsh` is missing use
+`powershell -File ...`.
+
 ---
 
 ## Part 1: APK Reverse Engineering
@@ -133,6 +155,23 @@ Read from `jadx_out` first. Key classes to examine:
 
 Common keywords: `login`, `sign`, `encrypt`, `cipher`, `token`, `root`,
 `certificate`, `trust`, `okhttp`, `retrofit`, `webview`
+
+**Finding a client's API endpoints / request parameters** (e.g. to reimplement a store's category
+or ranking calls):
+
+1. Cheap first pass, no decompile: extract the DEX string table and grep it. Windows has no
+   `strings`, so use `unzip -oq app.apk 'classes*.dex'` then
+   `grep -aoE '[ -~]{5,}' classes.dex > classes.txt`. Method names / URL paths are plain
+   constants (`client.getTabDetail`, `/api/market/...`); but the *values* of constants
+   (e.g. a URI behind `RANKING_URI`) are usually not adjacent, so this pass only gives names.
+2. Decompile with `scripts/decode.ps1 -SkipApktool` (jadx only is enough for code) and
+   `grep -rn` the constant name in `jadx_out/sources` to get its value and its call sites.
+3. `jadx` exiting with code 1 and "finished with errors, count: N" on large APKs is normal —
+   individual methods fail to decompile; the exported sources are still usable (the script prints
+   a warning instead of failing).
+4. Confirm a hypothesis by replaying it against the live API (a throwaway test or curl) before
+   writing production code. Obfuscated apps rename classes but keep string constants, so search
+   by string, not by class name.
 
 #### 3. Smali / Resource Confirmation
 
